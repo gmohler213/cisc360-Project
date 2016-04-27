@@ -3,7 +3,7 @@ Raspberry Pi performance enhancement project
 
 # NAMES:
 # Greg Mohler
-#
+# Peter Grillo
 #
 #
 #
