@@ -7,7 +7,7 @@
  *
  * Web address: http://polybench.sourceforge.net
  */
-/* atax.c: this file is part of PolyBench/C */
+/* heat-3d.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
 #include <unistd.h>
@@ -16,12 +16,12 @@
 
 /* Include polybench common header. */
 #include<polybench.h>
-# 1 "atax.c"
+# 1 "heat-3d.c"
 # 1 "<built-in>"
 # 1 "<command-line>"
 # 1 "/usr/include/stdc-predef.h" 1 3 4
 # 1 "<command-line>" 2
-# 1 "atax.c"
+# 1 "heat-3d.c"
 # 1 "utilities/polybench.h" 1
 # 28 "utilities/polybench.h"
 # 1 "/usr/include/stdlib.h" 1 3 4
@@ -1237,28 +1237,25 @@ extern void polybench_timer_stop();
 extern void polybench_timer_print();
 # 223 "utilities/polybench.h"
 extern void* polybench_alloc_data(unsigned long long int n, int elt_size);
-# 2 "atax.c" 2
+# 2 "heat-3d.c" 2
 
 
-# 1 "./linear-algebra/kernels/atax/atax.h" 1
-# 5 "atax.c" 2
+# 1 "./stencils/heat-3d/heat-3d.h" 1
+# 5 "heat-3d.c" 2
 
 
 
 static
-void init_array (int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0])
+void init_array (int n,
+   double A[ n + 0][n + 0][n + 0],
+   double B[ n + 0][n + 0][n + 0])
 {
-  int i, j;
-  double fn;
-  fn = (double)n;
+  int i, j, k;
 
   for (i = 0; i < n; i++)
-      x[i] = 1 + (i / fn);
-  for (i = 0; i < m; i++)
     for (j = 0; j < n; j++)
-      A[i][j] = (double) ((i+j) % n) / (5*m);
+      for (k = 0; k < n; k++)
+        A[i][j][k] = B[i][j][k] = (double) (i + j + (n-k))* 10 / (n);
 }
 
 
@@ -1266,18 +1263,20 @@ void init_array (int m, int n,
 
 static
 void print_array(int n,
-   double y[ n + 0])
+   double A[ n + 0][n + 0][n + 0])
 
 {
-  int i;
+  int i, j, k;
 
   fprintf(stderr, "==BEGIN DUMP_ARRAYS==\n");
-  fprintf(stderr, "begin dump: %s", "y");
-  for (i = 0; i < n; i++) {
-    if (i % 20 == 0) fprintf (stderr, "\n");
-    fprintf (stderr, "%0.2lf ", y[i]);
-  }
-  fprintf(stderr, "\nend   dump: %s\n", "y");
+  fprintf(stderr, "begin dump: %s", "A");
+  for (i = 0; i < n; i++)
+    for (j = 0; j < n; j++)
+      for (k = 0; k < n; k++) {
+         if ((i * n * n + j * n + k) % 20 == 0) fprintf(stderr, "\n");
+         fprintf(stderr, "%0.2lf ", A[i][j][k]);
+      }
+  fprintf(stderr, "\nend   dump: %s\n", "A");
   fprintf(stderr, "==END   DUMP_ARRAYS==\n");
 }
 
@@ -1285,24 +1284,35 @@ void print_array(int n,
 
 
 static
-void kernel_atax(int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0],
-   double y[ n + 0],
-   double tmp[ m + 0])
+void kernel_heat_3d(int tsteps,
+        int n,
+        double A[ n + 0][n + 0][n + 0],
+        double B[ n + 0][n + 0][n + 0])
 {
-  int i, j;
+  int t, i, j, k;
 
 #pragma scop
-  for (i = 0; i < n; i++)
-    y[i] = 0;
-  for (i = 0; i < m; i++)
-    {
-      tmp[i] = 0.0;
-      for (j = 0; j < n; j++)
- tmp[i] = tmp[i] + A[i][j] * x[j];
-      for (j = 0; j < n; j++)
- y[j] = y[j] + A[i][j] * tmp[i];
+    for (t = 1; t <= 500; t++) {
+        for (i = 1; i < n-1; i++) {
+            for (j = 1; j < n-1; j++) {
+                for (k = 1; k < n-1; k++) {
+                    B[i][j][k] = 0.125 * (A[i+1][j][k] - 2.0 * A[i][j][k] + A[i-1][j][k])
+                                 + 0.125 * (A[i][j+1][k] - 2.0 * A[i][j][k] + A[i][j-1][k])
+                                 + 0.125 * (A[i][j][k+1] - 2.0 * A[i][j][k] + A[i][j][k-1])
+                                 + A[i][j][k];
+                }
+            }
+        }
+        for (i = 1; i < n-1; i++) {
+           for (j = 1; j < n-1; j++) {
+               for (k = 1; k < n-1; k++) {
+                   A[i][j][k] = 0.125 * (B[i+1][j][k] - 2.0 * B[i][j][k] + B[i-1][j][k])
+                                + 0.125 * (B[i][j+1][k] - 2.0 * B[i][j][k] + B[i][j-1][k])
+                                + 0.125 * (B[i][j][k+1] - 2.0 * B[i][j][k] + B[i][j][k-1])
+                                + B[i][j][k];
+               }
+           }
+       }
     }
 #pragma endscop
 
@@ -1312,27 +1322,22 @@ void kernel_atax(int m, int n,
 int main(int argc, char** argv)
 {
 
-  int m = 1900;
-  int n = 2100;
+  int n = 120;
+  int tsteps = 500;
 
 
-  double (*A)[m + 0][n + 0]; A = (double(*)[m + 0][n + 0])polybench_alloc_data ((m + 0) * (n + 0), sizeof(double));;
-  double (*x)[n + 0]; x = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*y)[n + 0]; y = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*tmp)[m + 0]; tmp = (double(*)[m + 0])polybench_alloc_data (m + 0, sizeof(double));;
+  double (*A)[n + 0][n + 0][n + 0]; A = (double(*)[n + 0][n + 0][n + 0])polybench_alloc_data ((n + 0) * (n + 0) * (n + 0), sizeof(double));;
+  double (*B)[n + 0][n + 0][n + 0]; B = (double(*)[n + 0][n + 0][n + 0])polybench_alloc_data ((n + 0) * (n + 0) * (n + 0), sizeof(double));;
 
 
-  init_array (m, n, *A, *x);
+
+  init_array (n, *A, *B);
 
 
   polybench_timer_start();;
 
 
-  kernel_atax (m, n,
-        *A,
-        *x,
-        *y,
-        *tmp);
+  kernel_heat_3d (tsteps, n, *A, *B);
 
 
   polybench_timer_stop();;
@@ -1340,13 +1345,10 @@ int main(int argc, char** argv)
 
 
 
-  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *y);
+  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *A);
 
 
   free((void*)A);;
-  free((void*)x);;
-  free((void*)y);;
-  free((void*)tmp);;
 
   return 0;
 }

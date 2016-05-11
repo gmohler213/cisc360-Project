@@ -7,7 +7,7 @@
  *
  * Web address: http://polybench.sourceforge.net
  */
-/* atax.c: this file is part of PolyBench/C */
+/* gramschmidt.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
 #include <unistd.h>
@@ -16,12 +16,12 @@
 
 /* Include polybench common header. */
 #include<polybench.h>
-# 1 "atax.c"
+# 1 "gramschmidt.c"
 # 1 "<built-in>"
 # 1 "<command-line>"
 # 1 "/usr/include/stdc-predef.h" 1 3 4
 # 1 "<command-line>" 2
-# 1 "atax.c"
+# 1 "gramschmidt.c"
 # 1 "utilities/polybench.h" 1
 # 28 "utilities/polybench.h"
 # 1 "/usr/include/stdlib.h" 1 3 4
@@ -1237,72 +1237,94 @@ extern void polybench_timer_stop();
 extern void polybench_timer_print();
 # 223 "utilities/polybench.h"
 extern void* polybench_alloc_data(unsigned long long int n, int elt_size);
-# 2 "atax.c" 2
+# 2 "gramschmidt.c" 2
 
 
-# 1 "./linear-algebra/kernels/atax/atax.h" 1
-# 5 "atax.c" 2
+# 1 "./linear-algebra/solvers/gramschmidt/gramschmidt.h" 1
+# 5 "gramschmidt.c" 2
 
 
 
 static
-void init_array (int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0])
+void init_array(int m, int n,
+  double A[ m + 0][n + 0],
+  double R[ n + 0][n + 0],
+  double Q[ m + 0][n + 0])
 {
   int i, j;
-  double fn;
-  fn = (double)n;
 
-  for (i = 0; i < n; i++)
-      x[i] = 1 + (i / fn);
   for (i = 0; i < m; i++)
+    for (j = 0; j < n; j++) {
+      A[i][j] = (((double) ((i*j) % m) / m )*100) + 10;
+      Q[i][j] = 0.0;
+    }
+  for (i = 0; i < n; i++)
     for (j = 0; j < n; j++)
-      A[i][j] = (double) ((i+j) % n) / (5*m);
+      R[i][j] = 0.0;
 }
 
 
 
 
 static
-void print_array(int n,
-   double y[ n + 0])
-
+void print_array(int m, int n,
+   double A[ m + 0][n + 0],
+   double R[ n + 0][n + 0],
+   double Q[ m + 0][n + 0])
 {
-  int i;
+  int i, j;
 
   fprintf(stderr, "==BEGIN DUMP_ARRAYS==\n");
-  fprintf(stderr, "begin dump: %s", "y");
-  for (i = 0; i < n; i++) {
-    if (i % 20 == 0) fprintf (stderr, "\n");
-    fprintf (stderr, "%0.2lf ", y[i]);
-  }
-  fprintf(stderr, "\nend   dump: %s\n", "y");
+  fprintf(stderr, "begin dump: %s", "R");
+  for (i = 0; i < n; i++)
+    for (j = 0; j < n; j++) {
+ if ((i*n+j) % 20 == 0) fprintf (stderr, "\n");
+ fprintf (stderr, "%0.2lf ", R[i][j]);
+    }
+  fprintf(stderr, "\nend   dump: %s\n", "R");
+
+  fprintf(stderr, "begin dump: %s", "Q");
+  for (i = 0; i < m; i++)
+    for (j = 0; j < n; j++) {
+ if ((i*n+j) % 20 == 0) fprintf (stderr, "\n");
+ fprintf (stderr, "%0.2lf ", Q[i][j]);
+    }
+  fprintf(stderr, "\nend   dump: %s\n", "Q");
   fprintf(stderr, "==END   DUMP_ARRAYS==\n");
 }
 
 
 
 
+
+
 static
-void kernel_atax(int m, int n,
+void kernel_gramschmidt(int m, int n,
    double A[ m + 0][n + 0],
-   double x[ n + 0],
-   double y[ n + 0],
-   double tmp[ m + 0])
+   double R[ n + 0][n + 0],
+   double Q[ m + 0][n + 0])
 {
-  int i, j;
+  int i, j, k;
+
+  double nrm;
 
 #pragma scop
-  for (i = 0; i < n; i++)
-    y[i] = 0;
-  for (i = 0; i < m; i++)
+  for (k = 0; k < n; k++)
     {
-      tmp[i] = 0.0;
-      for (j = 0; j < n; j++)
- tmp[i] = tmp[i] + A[i][j] * x[j];
-      for (j = 0; j < n; j++)
- y[j] = y[j] + A[i][j] * tmp[i];
+      nrm = 0.0;
+      for (i = 0; i < m; i++)
+        nrm += A[i][k] * A[i][k];
+      R[k][k] = sqrt(nrm);
+      for (i = 0; i < m; i++)
+        Q[i][k] = A[i][k] / R[k][k];
+      for (j = k + 1; j < n; j++)
+ {
+   R[k][j] = 0.0;
+   for (i = 0; i < m; i++)
+     R[k][j] += Q[i][k] * A[i][j];
+   for (i = 0; i < m; i++)
+     A[i][j] = A[i][j] - Q[i][k] * R[k][j];
+ }
     }
 #pragma endscop
 
@@ -1312,27 +1334,28 @@ void kernel_atax(int m, int n,
 int main(int argc, char** argv)
 {
 
-  int m = 1900;
-  int n = 2100;
+  int m = 1000;
+  int n = 1200;
 
 
   double (*A)[m + 0][n + 0]; A = (double(*)[m + 0][n + 0])polybench_alloc_data ((m + 0) * (n + 0), sizeof(double));;
-  double (*x)[n + 0]; x = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*y)[n + 0]; y = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*tmp)[m + 0]; tmp = (double(*)[m + 0])polybench_alloc_data (m + 0, sizeof(double));;
+  double (*R)[n + 0][n + 0]; R = (double(*)[n + 0][n + 0])polybench_alloc_data ((n + 0) * (n + 0), sizeof(double));;
+  double (*Q)[m + 0][n + 0]; Q = (double(*)[m + 0][n + 0])polybench_alloc_data ((m + 0) * (n + 0), sizeof(double));;
 
 
-  init_array (m, n, *A, *x);
+  init_array (m, n,
+       *A,
+       *R,
+       *Q);
 
 
   polybench_timer_start();;
 
 
-  kernel_atax (m, n,
+  kernel_gramschmidt (m, n,
         *A,
-        *x,
-        *y,
-        *tmp);
+        *R,
+        *Q);
 
 
   polybench_timer_stop();;
@@ -1340,13 +1363,12 @@ int main(int argc, char** argv)
 
 
 
-  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *y);
+  if (argc > 42 && ! strcmp(argv[0], "")) print_array(m, n, *A, *R, *Q);
 
 
   free((void*)A);;
-  free((void*)x);;
-  free((void*)y);;
-  free((void*)tmp);;
+  free((void*)R);;
+  free((void*)Q);;
 
   return 0;
 }

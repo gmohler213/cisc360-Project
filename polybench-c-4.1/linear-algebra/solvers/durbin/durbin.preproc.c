@@ -7,7 +7,7 @@
  *
  * Web address: http://polybench.sourceforge.net
  */
-/* atax.c: this file is part of PolyBench/C */
+/* durbin.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
 #include <unistd.h>
@@ -16,12 +16,12 @@
 
 /* Include polybench common header. */
 #include<polybench.h>
-# 1 "atax.c"
+# 1 "durbin.c"
 # 1 "<built-in>"
 # 1 "<command-line>"
 # 1 "/usr/include/stdc-predef.h" 1 3 4
 # 1 "<command-line>" 2
-# 1 "atax.c"
+# 1 "durbin.c"
 # 1 "utilities/polybench.h" 1
 # 28 "utilities/polybench.h"
 # 1 "/usr/include/stdlib.h" 1 3 4
@@ -1237,28 +1237,24 @@ extern void polybench_timer_stop();
 extern void polybench_timer_print();
 # 223 "utilities/polybench.h"
 extern void* polybench_alloc_data(unsigned long long int n, int elt_size);
-# 2 "atax.c" 2
+# 2 "durbin.c" 2
 
 
-# 1 "./linear-algebra/kernels/atax/atax.h" 1
-# 5 "atax.c" 2
+# 1 "./linear-algebra/solvers/durbin/durbin.h" 1
+# 5 "durbin.c" 2
 
 
 
 static
-void init_array (int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0])
+void init_array (int n,
+   double r[ n + 0])
 {
   int i, j;
-  double fn;
-  fn = (double)n;
 
   for (i = 0; i < n; i++)
-      x[i] = 1 + (i / fn);
-  for (i = 0; i < m; i++)
-    for (j = 0; j < n; j++)
-      A[i][j] = (double) ((i+j) % n) / (5*m);
+    {
+      r[i] = (n+1-i);
+    }
 }
 
 
@@ -1285,25 +1281,38 @@ void print_array(int n,
 
 
 static
-void kernel_atax(int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0],
-   double y[ n + 0],
-   double tmp[ m + 0])
+void kernel_durbin(int n,
+     double r[ n + 0],
+     double y[ n + 0])
 {
-  int i, j;
+ double z[2000];
+ double alpha;
+ double beta;
+ double sum;
+
+ int i,k;
 
 #pragma scop
-  for (i = 0; i < n; i++)
-    y[i] = 0;
-  for (i = 0; i < m; i++)
-    {
-      tmp[i] = 0.0;
-      for (j = 0; j < n; j++)
- tmp[i] = tmp[i] + A[i][j] * x[j];
-      for (j = 0; j < n; j++)
- y[j] = y[j] + A[i][j] * tmp[i];
-    }
+ y[0] = -r[0];
+ beta = 1.0;
+ alpha = -r[0];
+
+ for (k = 1; k < n; k++) {
+   beta = (1-alpha*alpha)*beta;
+   sum = 0.0;
+   for (i=0; i<k; i++) {
+      sum += r[k-i-1]*y[i];
+   }
+   alpha = - (r[k] + sum)/beta;
+
+   for (i=0; i<k; i++) {
+      z[i] = y[i] + alpha*y[k-i-1];
+   }
+   for (i=0; i<k; i++) {
+     y[i] = z[i];
+   }
+   y[k] = alpha;
+ }
 #pragma endscop
 
 }
@@ -1312,27 +1321,23 @@ void kernel_atax(int m, int n,
 int main(int argc, char** argv)
 {
 
-  int m = 1900;
-  int n = 2100;
+  int n = 2000;
 
 
-  double (*A)[m + 0][n + 0]; A = (double(*)[m + 0][n + 0])polybench_alloc_data ((m + 0) * (n + 0), sizeof(double));;
-  double (*x)[n + 0]; x = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
+  double (*r)[n + 0]; r = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
   double (*y)[n + 0]; y = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*tmp)[m + 0]; tmp = (double(*)[m + 0])polybench_alloc_data (m + 0, sizeof(double));;
 
 
-  init_array (m, n, *A, *x);
+
+  init_array (n, *r);
 
 
   polybench_timer_start();;
 
 
-  kernel_atax (m, n,
-        *A,
-        *x,
-        *y,
-        *tmp);
+  kernel_durbin (n,
+   *r,
+   *y);
 
 
   polybench_timer_stop();;
@@ -1343,10 +1348,8 @@ int main(int argc, char** argv)
   if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *y);
 
 
-  free((void*)A);;
-  free((void*)x);;
+  free((void*)r);;
   free((void*)y);;
-  free((void*)tmp);;
 
   return 0;
 }

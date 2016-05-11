@@ -7,7 +7,7 @@
  *
  * Web address: http://polybench.sourceforge.net
  */
-/* atax.c: this file is part of PolyBench/C */
+/* covariance.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
 #include <unistd.h>
@@ -16,12 +16,12 @@
 
 /* Include polybench common header. */
 #include<polybench.h>
-# 1 "atax.c"
+# 1 "covariance.c"
 # 1 "<built-in>"
 # 1 "<command-line>"
 # 1 "/usr/include/stdc-predef.h" 1 3 4
 # 1 "<command-line>" 2
-# 1 "atax.c"
+# 1 "covariance.c"
 # 1 "utilities/polybench.h" 1
 # 28 "utilities/polybench.h"
 # 1 "/usr/include/stdlib.h" 1 3 4
@@ -1237,47 +1237,46 @@ extern void polybench_timer_stop();
 extern void polybench_timer_print();
 # 223 "utilities/polybench.h"
 extern void* polybench_alloc_data(unsigned long long int n, int elt_size);
-# 2 "atax.c" 2
+# 2 "covariance.c" 2
 
 
-# 1 "./linear-algebra/kernels/atax/atax.h" 1
-# 5 "atax.c" 2
+# 1 "./datamining/covariance/covariance.h" 1
+# 5 "covariance.c" 2
 
 
 
 static
 void init_array (int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0])
+   double *float_n,
+   double data[ n + 0][m + 0])
 {
   int i, j;
-  double fn;
-  fn = (double)n;
 
-  for (i = 0; i < n; i++)
-      x[i] = 1 + (i / fn);
-  for (i = 0; i < m; i++)
-    for (j = 0; j < n; j++)
-      A[i][j] = (double) ((i+j) % n) / (5*m);
+  *float_n = (double)n;
+
+  for (i = 0; i < 1400; i++)
+    for (j = 0; j < 1200; j++)
+      data[i][j] = ((double) i*j) / 1200;
 }
 
 
 
 
 static
-void print_array(int n,
-   double y[ n + 0])
+void print_array(int m,
+   double cov[ m + 0][m + 0])
 
 {
-  int i;
+  int i, j;
 
   fprintf(stderr, "==BEGIN DUMP_ARRAYS==\n");
-  fprintf(stderr, "begin dump: %s", "y");
-  for (i = 0; i < n; i++) {
-    if (i % 20 == 0) fprintf (stderr, "\n");
-    fprintf (stderr, "%0.2lf ", y[i]);
-  }
-  fprintf(stderr, "\nend   dump: %s\n", "y");
+  fprintf(stderr, "begin dump: %s", "cov");
+  for (i = 0; i < m; i++)
+    for (j = 0; j < m; j++) {
+      if ((i * m + j) % 20 == 0) fprintf (stderr, "\n");
+      fprintf (stderr, "%0.2lf ", cov[i][j]);
+    }
+  fprintf(stderr, "\nend   dump: %s\n", "cov");
   fprintf(stderr, "==END   DUMP_ARRAYS==\n");
 }
 
@@ -1285,25 +1284,36 @@ void print_array(int n,
 
 
 static
-void kernel_atax(int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0],
-   double y[ n + 0],
-   double tmp[ m + 0])
+void kernel_covariance(int m, int n,
+         double float_n,
+         double data[ n + 0][m + 0],
+         double cov[ m + 0][m + 0],
+         double mean[ m + 0])
 {
-  int i, j;
+  int i, j, k;
 
 #pragma scop
-  for (i = 0; i < n; i++)
-    y[i] = 0;
-  for (i = 0; i < m; i++)
+  for (j = 0; j < m; j++)
     {
-      tmp[i] = 0.0;
-      for (j = 0; j < n; j++)
- tmp[i] = tmp[i] + A[i][j] * x[j];
-      for (j = 0; j < n; j++)
- y[j] = y[j] + A[i][j] * tmp[i];
+      mean[j] = 0.0;
+      for (i = 0; i < n; i++)
+        mean[j] += data[i][j];
+      mean[j] /= float_n;
     }
+
+  for (i = 0; i < n; i++)
+    for (j = 0; j < m; j++)
+      data[i][j] -= mean[j];
+
+  for (i = 0; i < m; i++)
+    for (j = i; j < m; j++)
+      {
+        cov[i][j] = 0.0;
+        for (k = 0; k < n; k++)
+   cov[i][j] += data[k][i] * data[k][j];
+        cov[i][j] /= (float_n - 1.0);
+        cov[j][i] = cov[i][j];
+      }
 #pragma endscop
 
 }
@@ -1312,27 +1322,27 @@ void kernel_atax(int m, int n,
 int main(int argc, char** argv)
 {
 
-  int m = 1900;
-  int n = 2100;
+  int n = 1400;
+  int m = 1200;
 
 
-  double (*A)[m + 0][n + 0]; A = (double(*)[m + 0][n + 0])polybench_alloc_data ((m + 0) * (n + 0), sizeof(double));;
-  double (*x)[n + 0]; x = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*y)[n + 0]; y = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*tmp)[m + 0]; tmp = (double(*)[m + 0])polybench_alloc_data (m + 0, sizeof(double));;
+  double float_n;
+  double (*data)[n + 0][m + 0]; data = (double(*)[n + 0][m + 0])polybench_alloc_data ((n + 0) * (m + 0), sizeof(double));;
+  double (*cov)[m + 0][m + 0]; cov = (double(*)[m + 0][m + 0])polybench_alloc_data ((m + 0) * (m + 0), sizeof(double));;
+  double (*mean)[m + 0]; mean = (double(*)[m + 0])polybench_alloc_data (m + 0, sizeof(double));;
 
 
-  init_array (m, n, *A, *x);
+
+  init_array (m, n, &float_n, *data);
 
 
   polybench_timer_start();;
 
 
-  kernel_atax (m, n,
-        *A,
-        *x,
-        *y,
-        *tmp);
+  kernel_covariance (m, n, float_n,
+       *data,
+       *cov,
+       *mean);
 
 
   polybench_timer_stop();;
@@ -1340,13 +1350,12 @@ int main(int argc, char** argv)
 
 
 
-  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *y);
+  if (argc > 42 && ! strcmp(argv[0], "")) print_array(m, *cov);
 
 
-  free((void*)A);;
-  free((void*)x);;
-  free((void*)y);;
-  free((void*)tmp);;
+  free((void*)data);;
+  free((void*)cov);;
+  free((void*)mean);;
 
   return 0;
 }

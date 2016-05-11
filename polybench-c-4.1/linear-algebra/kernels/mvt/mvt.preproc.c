@@ -7,7 +7,7 @@
  *
  * Web address: http://polybench.sourceforge.net
  */
-/* atax.c: this file is part of PolyBench/C */
+/* mvt.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
 #include <unistd.h>
@@ -16,12 +16,12 @@
 
 /* Include polybench common header. */
 #include<polybench.h>
-# 1 "atax.c"
+# 1 "mvt.c"
 # 1 "<built-in>"
 # 1 "<command-line>"
 # 1 "/usr/include/stdc-predef.h" 1 3 4
 # 1 "<command-line>" 2
-# 1 "atax.c"
+# 1 "mvt.c"
 # 1 "utilities/polybench.h" 1
 # 28 "utilities/polybench.h"
 # 1 "/usr/include/stdlib.h" 1 3 4
@@ -1237,28 +1237,33 @@ extern void polybench_timer_stop();
 extern void polybench_timer_print();
 # 223 "utilities/polybench.h"
 extern void* polybench_alloc_data(unsigned long long int n, int elt_size);
-# 2 "atax.c" 2
+# 2 "mvt.c" 2
 
 
-# 1 "./linear-algebra/kernels/atax/atax.h" 1
-# 5 "atax.c" 2
+# 1 "./linear-algebra/kernels/mvt/mvt.h" 1
+# 5 "mvt.c" 2
 
 
 
 static
-void init_array (int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0])
+void init_array(int n,
+  double x1[ n + 0],
+  double x2[ n + 0],
+  double y_1[ n + 0],
+  double y_2[ n + 0],
+  double A[ n + 0][n + 0])
 {
   int i, j;
-  double fn;
-  fn = (double)n;
 
   for (i = 0; i < n; i++)
-      x[i] = 1 + (i / fn);
-  for (i = 0; i < m; i++)
-    for (j = 0; j < n; j++)
-      A[i][j] = (double) ((i+j) % n) / (5*m);
+    {
+      x1[i] = (double) (i % n) / n;
+      x2[i] = (double) ((i + 1) % n) / n;
+      y_1[i] = (double) ((i + 3) % n) / n;
+      y_2[i] = (double) ((i + 4) % n) / n;
+      for (j = 0; j < n; j++)
+ A[i][j] = (double) (i*j % n) / n;
+    }
 }
 
 
@@ -1266,18 +1271,26 @@ void init_array (int m, int n,
 
 static
 void print_array(int n,
-   double y[ n + 0])
+   double x1[ n + 0],
+   double x2[ n + 0])
 
 {
   int i;
 
   fprintf(stderr, "==BEGIN DUMP_ARRAYS==\n");
-  fprintf(stderr, "begin dump: %s", "y");
+  fprintf(stderr, "begin dump: %s", "x1");
   for (i = 0; i < n; i++) {
     if (i % 20 == 0) fprintf (stderr, "\n");
-    fprintf (stderr, "%0.2lf ", y[i]);
+    fprintf (stderr, "%0.2lf ", x1[i]);
   }
-  fprintf(stderr, "\nend   dump: %s\n", "y");
+  fprintf(stderr, "\nend   dump: %s\n", "x1");
+
+  fprintf(stderr, "begin dump: %s", "x2");
+  for (i = 0; i < n; i++) {
+    if (i % 20 == 0) fprintf (stderr, "\n");
+    fprintf (stderr, "%0.2lf ", x2[i]);
+  }
+  fprintf(stderr, "\nend   dump: %s\n", "x2");
   fprintf(stderr, "==END   DUMP_ARRAYS==\n");
 }
 
@@ -1285,25 +1298,22 @@ void print_array(int n,
 
 
 static
-void kernel_atax(int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0],
-   double y[ n + 0],
-   double tmp[ m + 0])
+void kernel_mvt(int n,
+  double x1[ n + 0],
+  double x2[ n + 0],
+  double y_1[ n + 0],
+  double y_2[ n + 0],
+  double A[ n + 0][n + 0])
 {
   int i, j;
 
 #pragma scop
   for (i = 0; i < n; i++)
-    y[i] = 0;
-  for (i = 0; i < m; i++)
-    {
-      tmp[i] = 0.0;
-      for (j = 0; j < n; j++)
- tmp[i] = tmp[i] + A[i][j] * x[j];
-      for (j = 0; j < n; j++)
- y[j] = y[j] + A[i][j] * tmp[i];
-    }
+    for (j = 0; j < n; j++)
+      x1[i] = x1[i] + A[i][j] * y_1[j];
+  for (i = 0; i < n; i++)
+    for (j = 0; j < n; j++)
+      x2[i] = x2[i] + A[j][i] * y_2[j];
 #pragma endscop
 
 }
@@ -1312,27 +1322,34 @@ void kernel_atax(int m, int n,
 int main(int argc, char** argv)
 {
 
-  int m = 1900;
-  int n = 2100;
+  int n = 2000;
 
 
-  double (*A)[m + 0][n + 0]; A = (double(*)[m + 0][n + 0])polybench_alloc_data ((m + 0) * (n + 0), sizeof(double));;
-  double (*x)[n + 0]; x = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*y)[n + 0]; y = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*tmp)[m + 0]; tmp = (double(*)[m + 0])polybench_alloc_data (m + 0, sizeof(double));;
+  double (*A)[n + 0][n + 0]; A = (double(*)[n + 0][n + 0])polybench_alloc_data ((n + 0) * (n + 0), sizeof(double));;
+  double (*x1)[n + 0]; x1 = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
+  double (*x2)[n + 0]; x2 = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
+  double (*y_1)[n + 0]; y_1 = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
+  double (*y_2)[n + 0]; y_2 = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
 
 
-  init_array (m, n, *A, *x);
+
+  init_array (n,
+       *x1,
+       *x2,
+       *y_1,
+       *y_2,
+       *A);
 
 
   polybench_timer_start();;
 
 
-  kernel_atax (m, n,
-        *A,
-        *x,
-        *y,
-        *tmp);
+  kernel_mvt (n,
+       *x1,
+       *x2,
+       *y_1,
+       *y_2,
+       *A);
 
 
   polybench_timer_stop();;
@@ -1340,13 +1357,14 @@ int main(int argc, char** argv)
 
 
 
-  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *y);
+  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *x1, *x2);
 
 
   free((void*)A);;
-  free((void*)x);;
-  free((void*)y);;
-  free((void*)tmp);;
+  free((void*)x1);;
+  free((void*)x2);;
+  free((void*)y_1);;
+  free((void*)y_2);;
 
   return 0;
 }

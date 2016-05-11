@@ -7,7 +7,7 @@
  *
  * Web address: http://polybench.sourceforge.net
  */
-/* atax.c: this file is part of PolyBench/C */
+/* syrk.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
 #include <unistd.h>
@@ -16,12 +16,12 @@
 
 /* Include polybench common header. */
 #include<polybench.h>
-# 1 "atax.c"
+# 1 "syrk.c"
 # 1 "<built-in>"
 # 1 "<command-line>"
 # 1 "/usr/include/stdc-predef.h" 1 3 4
 # 1 "<command-line>" 2
-# 1 "atax.c"
+# 1 "syrk.c"
 # 1 "utilities/polybench.h" 1
 # 28 "utilities/polybench.h"
 # 1 "/usr/include/stdlib.h" 1 3 4
@@ -1237,28 +1237,31 @@ extern void polybench_timer_stop();
 extern void polybench_timer_print();
 # 223 "utilities/polybench.h"
 extern void* polybench_alloc_data(unsigned long long int n, int elt_size);
-# 2 "atax.c" 2
+# 2 "syrk.c" 2
 
 
-# 1 "./linear-algebra/kernels/atax/atax.h" 1
-# 5 "atax.c" 2
+# 1 "./linear-algebra/blas/syrk/syrk.h" 1
+# 5 "syrk.c" 2
 
 
 
 static
-void init_array (int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0])
+void init_array(int n, int m,
+  double *alpha,
+  double *beta,
+  double C[ n + 0][n + 0],
+  double A[ n + 0][m + 0])
 {
   int i, j;
-  double fn;
-  fn = (double)n;
 
+  *alpha = 1.5;
+  *beta = 1.2;
   for (i = 0; i < n; i++)
-      x[i] = 1 + (i / fn);
-  for (i = 0; i < m; i++)
+    for (j = 0; j < m; j++)
+      A[i][j] = (double) (i*j%n) / n;
+  for (i = 0; i < n; i++)
     for (j = 0; j < n; j++)
-      A[i][j] = (double) ((i+j) % n) / (5*m);
+      C[i][j] = (double) (i*j%m) / m;
 }
 
 
@@ -1266,18 +1269,18 @@ void init_array (int m, int n,
 
 static
 void print_array(int n,
-   double y[ n + 0])
-
+   double C[ n + 0][n + 0])
 {
-  int i;
+  int i, j;
 
   fprintf(stderr, "==BEGIN DUMP_ARRAYS==\n");
-  fprintf(stderr, "begin dump: %s", "y");
-  for (i = 0; i < n; i++) {
-    if (i % 20 == 0) fprintf (stderr, "\n");
-    fprintf (stderr, "%0.2lf ", y[i]);
-  }
-  fprintf(stderr, "\nend   dump: %s\n", "y");
+  fprintf(stderr, "begin dump: %s", "C");
+  for (i = 0; i < n; i++)
+    for (j = 0; j < n; j++) {
+ if ((i * n + j) % 20 == 0) fprintf (stderr, "\n");
+ fprintf (stderr, "%0.2lf ", C[i][j]);
+    }
+  fprintf(stderr, "\nend   dump: %s\n", "C");
   fprintf(stderr, "==END   DUMP_ARRAYS==\n");
 }
 
@@ -1285,25 +1288,29 @@ void print_array(int n,
 
 
 static
-void kernel_atax(int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0],
-   double y[ n + 0],
-   double tmp[ m + 0])
+void kernel_syrk(int n, int m,
+   double alpha,
+   double beta,
+   double C[ n + 0][n + 0],
+   double A[ n + 0][m + 0])
 {
-  int i, j;
+  int i, j, k;
+
+
+
+
+
+
 
 #pragma scop
-  for (i = 0; i < n; i++)
-    y[i] = 0;
-  for (i = 0; i < m; i++)
-    {
-      tmp[i] = 0.0;
-      for (j = 0; j < n; j++)
- tmp[i] = tmp[i] + A[i][j] * x[j];
-      for (j = 0; j < n; j++)
- y[j] = y[j] + A[i][j] * tmp[i];
+  for (i = 0; i < n; i++) {
+    for (j = 0; j <= i; j++)
+      C[i][j] *= beta;
+    for (k = 0; k < m; k++) {
+      for (j = 0; j <= i; j++)
+        C[i][j] += alpha * A[i][k] * A[j][k];
     }
+  }
 #pragma endscop
 
 }
@@ -1312,27 +1319,23 @@ void kernel_atax(int m, int n,
 int main(int argc, char** argv)
 {
 
-  int m = 1900;
-  int n = 2100;
+  int n = 1200;
+  int m = 1000;
 
 
-  double (*A)[m + 0][n + 0]; A = (double(*)[m + 0][n + 0])polybench_alloc_data ((m + 0) * (n + 0), sizeof(double));;
-  double (*x)[n + 0]; x = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*y)[n + 0]; y = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*tmp)[m + 0]; tmp = (double(*)[m + 0])polybench_alloc_data (m + 0, sizeof(double));;
+  double alpha;
+  double beta;
+  double (*C)[n + 0][n + 0]; C = (double(*)[n + 0][n + 0])polybench_alloc_data ((n + 0) * (n + 0), sizeof(double));;
+  double (*A)[n + 0][m + 0]; A = (double(*)[n + 0][m + 0])polybench_alloc_data ((n + 0) * (m + 0), sizeof(double));;
 
 
-  init_array (m, n, *A, *x);
+  init_array (n, m, &alpha, &beta, *C, *A);
 
 
   polybench_timer_start();;
 
 
-  kernel_atax (m, n,
-        *A,
-        *x,
-        *y,
-        *tmp);
+  kernel_syrk (n, m, alpha, beta, *C, *A);
 
 
   polybench_timer_stop();;
@@ -1340,13 +1343,11 @@ int main(int argc, char** argv)
 
 
 
-  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *y);
+  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *C);
 
 
+  free((void*)C);;
   free((void*)A);;
-  free((void*)x);;
-  free((void*)y);;
-  free((void*)tmp);;
 
   return 0;
 }

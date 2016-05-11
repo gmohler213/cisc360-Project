@@ -7,7 +7,7 @@
  *
  * Web address: http://polybench.sourceforge.net
  */
-/* atax.c: this file is part of PolyBench/C */
+/* trmm.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
 #include <unistd.h>
@@ -16,12 +16,12 @@
 
 /* Include polybench common header. */
 #include<polybench.h>
-# 1 "atax.c"
+# 1 "trmm.c"
 # 1 "<built-in>"
 # 1 "<command-line>"
 # 1 "/usr/include/stdc-predef.h" 1 3 4
 # 1 "<command-line>" 2
-# 1 "atax.c"
+# 1 "trmm.c"
 # 1 "utilities/polybench.h" 1
 # 28 "utilities/polybench.h"
 # 1 "/usr/include/stdlib.h" 1 3 4
@@ -1237,47 +1237,52 @@ extern void polybench_timer_stop();
 extern void polybench_timer_print();
 # 223 "utilities/polybench.h"
 extern void* polybench_alloc_data(unsigned long long int n, int elt_size);
-# 2 "atax.c" 2
+# 2 "trmm.c" 2
 
 
-# 1 "./linear-algebra/kernels/atax/atax.h" 1
-# 5 "atax.c" 2
+# 1 "./linear-algebra/blas/trmm/trmm.h" 1
+# 5 "trmm.c" 2
 
 
 
 static
-void init_array (int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0])
+void init_array(int m, int n,
+  double *alpha,
+  double A[ m + 0][m + 0],
+  double B[ m + 0][n + 0])
 {
   int i, j;
-  double fn;
-  fn = (double)n;
 
-  for (i = 0; i < n; i++)
-      x[i] = 1 + (i / fn);
-  for (i = 0; i < m; i++)
-    for (j = 0; j < n; j++)
-      A[i][j] = (double) ((i+j) % n) / (5*m);
+  *alpha = 1.5;
+  for (i = 0; i < m; i++) {
+    for (j = 0; j < i; j++) {
+      A[i][j] = (double)((i+j) % m)/m;
+    }
+    A[i][i] = 1.0;
+    for (j = 0; j < n; j++) {
+      B[i][j] = (double)((n+(i-j)) % n)/n;
+    }
+ }
+
 }
 
 
 
 
 static
-void print_array(int n,
-   double y[ n + 0])
-
+void print_array(int m, int n,
+   double B[ m + 0][n + 0])
 {
-  int i;
+  int i, j;
 
   fprintf(stderr, "==BEGIN DUMP_ARRAYS==\n");
-  fprintf(stderr, "begin dump: %s", "y");
-  for (i = 0; i < n; i++) {
-    if (i % 20 == 0) fprintf (stderr, "\n");
-    fprintf (stderr, "%0.2lf ", y[i]);
-  }
-  fprintf(stderr, "\nend   dump: %s\n", "y");
+  fprintf(stderr, "begin dump: %s", "B");
+  for (i = 0; i < m; i++)
+    for (j = 0; j < n; j++) {
+ if ((i * m + j) % 20 == 0) fprintf (stderr, "\n");
+ fprintf (stderr, "%0.2lf ", B[i][j]);
+    }
+  fprintf(stderr, "\nend   dump: %s\n", "B");
   fprintf(stderr, "==END   DUMP_ARRAYS==\n");
 }
 
@@ -1285,25 +1290,21 @@ void print_array(int n,
 
 
 static
-void kernel_atax(int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0],
-   double y[ n + 0],
-   double tmp[ m + 0])
+void kernel_trmm(int m, int n,
+   double alpha,
+   double A[ m + 0][m + 0],
+   double B[ m + 0][n + 0])
 {
-  int i, j;
-
+  int i, j, k;
+  double temp;
+# 69 "trmm.c"
 #pragma scop
-  for (i = 0; i < n; i++)
-    y[i] = 0;
   for (i = 0; i < m; i++)
-    {
-      tmp[i] = 0.0;
-      for (j = 0; j < n; j++)
- tmp[i] = tmp[i] + A[i][j] * x[j];
-      for (j = 0; j < n; j++)
- y[j] = y[j] + A[i][j] * tmp[i];
-    }
+     for (j = 0; j < n; j++) {
+        for (k = i+1; k < m; k++)
+           B[i][j] += A[k][i] * B[k][j];
+        B[i][j] = alpha * B[i][j];
+     }
 #pragma endscop
 
 }
@@ -1312,27 +1313,22 @@ void kernel_atax(int m, int n,
 int main(int argc, char** argv)
 {
 
-  int m = 1900;
-  int n = 2100;
+  int m = 1000;
+  int n = 1200;
 
 
-  double (*A)[m + 0][n + 0]; A = (double(*)[m + 0][n + 0])polybench_alloc_data ((m + 0) * (n + 0), sizeof(double));;
-  double (*x)[n + 0]; x = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*y)[n + 0]; y = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*tmp)[m + 0]; tmp = (double(*)[m + 0])polybench_alloc_data (m + 0, sizeof(double));;
+  double alpha;
+  double (*A)[m + 0][m + 0]; A = (double(*)[m + 0][m + 0])polybench_alloc_data ((m + 0) * (m + 0), sizeof(double));;
+  double (*B)[m + 0][n + 0]; B = (double(*)[m + 0][n + 0])polybench_alloc_data ((m + 0) * (n + 0), sizeof(double));;
 
 
-  init_array (m, n, *A, *x);
+  init_array (m, n, &alpha, *A, *B);
 
 
   polybench_timer_start();;
 
 
-  kernel_atax (m, n,
-        *A,
-        *x,
-        *y,
-        *tmp);
+  kernel_trmm (m, n, alpha, *A, *B);
 
 
   polybench_timer_stop();;
@@ -1340,13 +1336,11 @@ int main(int argc, char** argv)
 
 
 
-  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *y);
+  if (argc > 42 && ! strcmp(argv[0], "")) print_array(m, n, *B);
 
 
   free((void*)A);;
-  free((void*)x);;
-  free((void*)y);;
-  free((void*)tmp);;
+  free((void*)B);;
 
   return 0;
 }

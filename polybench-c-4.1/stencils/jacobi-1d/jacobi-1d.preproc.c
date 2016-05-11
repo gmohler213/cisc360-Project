@@ -7,7 +7,7 @@
  *
  * Web address: http://polybench.sourceforge.net
  */
-/* atax.c: this file is part of PolyBench/C */
+/* jacobi-1d.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
 #include <unistd.h>
@@ -16,12 +16,12 @@
 
 /* Include polybench common header. */
 #include<polybench.h>
-# 1 "atax.c"
+# 1 "jacobi-1d.c"
 # 1 "<built-in>"
 # 1 "<command-line>"
 # 1 "/usr/include/stdc-predef.h" 1 3 4
 # 1 "<command-line>" 2
-# 1 "atax.c"
+# 1 "jacobi-1d.c"
 # 1 "utilities/polybench.h" 1
 # 28 "utilities/polybench.h"
 # 1 "/usr/include/stdlib.h" 1 3 4
@@ -1237,28 +1237,26 @@ extern void polybench_timer_stop();
 extern void polybench_timer_print();
 # 223 "utilities/polybench.h"
 extern void* polybench_alloc_data(unsigned long long int n, int elt_size);
-# 2 "atax.c" 2
+# 2 "jacobi-1d.c" 2
 
 
-# 1 "./linear-algebra/kernels/atax/atax.h" 1
-# 5 "atax.c" 2
+# 1 "./stencils/jacobi-1d/jacobi-1d.h" 1
+# 5 "jacobi-1d.c" 2
 
 
 
 static
-void init_array (int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0])
+void init_array (int n,
+   double A[ n + 0],
+   double B[ n + 0])
 {
-  int i, j;
-  double fn;
-  fn = (double)n;
+  int i;
 
   for (i = 0; i < n; i++)
-      x[i] = 1 + (i / fn);
-  for (i = 0; i < m; i++)
-    for (j = 0; j < n; j++)
-      A[i][j] = (double) ((i+j) % n) / (5*m);
+      {
+ A[i] = ((double) i+ 2) / n;
+ B[i] = ((double) i+ 3) / n;
+      }
 }
 
 
@@ -1266,18 +1264,19 @@ void init_array (int m, int n,
 
 static
 void print_array(int n,
-   double y[ n + 0])
+   double A[ n + 0])
 
 {
   int i;
 
   fprintf(stderr, "==BEGIN DUMP_ARRAYS==\n");
-  fprintf(stderr, "begin dump: %s", "y");
-  for (i = 0; i < n; i++) {
-    if (i % 20 == 0) fprintf (stderr, "\n");
-    fprintf (stderr, "%0.2lf ", y[i]);
-  }
-  fprintf(stderr, "\nend   dump: %s\n", "y");
+  fprintf(stderr, "begin dump: %s", "A");
+  for (i = 0; i < n; i++)
+    {
+      if (i % 20 == 0) fprintf(stderr, "\n");
+      fprintf(stderr, "%0.2lf ", A[i]);
+    }
+  fprintf(stderr, "\nend   dump: %s\n", "A");
   fprintf(stderr, "==END   DUMP_ARRAYS==\n");
 }
 
@@ -1285,24 +1284,20 @@ void print_array(int n,
 
 
 static
-void kernel_atax(int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0],
-   double y[ n + 0],
-   double tmp[ m + 0])
+void kernel_jacobi_1d(int tsteps,
+       int n,
+       double A[ n + 0],
+       double B[ n + 0])
 {
-  int i, j;
+  int t, i;
 
 #pragma scop
-  for (i = 0; i < n; i++)
-    y[i] = 0;
-  for (i = 0; i < m; i++)
+  for (t = 0; t < tsteps; t++)
     {
-      tmp[i] = 0.0;
-      for (j = 0; j < n; j++)
- tmp[i] = tmp[i] + A[i][j] * x[j];
-      for (j = 0; j < n; j++)
- y[j] = y[j] + A[i][j] * tmp[i];
+      for (i = 1; i < n - 1; i++)
+ B[i] = 0.33333 * (A[i-1] + A[i] + A[i + 1]);
+      for (i = 1; i < n - 1; i++)
+ A[i] = 0.33333 * (B[i-1] + B[i] + B[i + 1]);
     }
 #pragma endscop
 
@@ -1312,27 +1307,22 @@ void kernel_atax(int m, int n,
 int main(int argc, char** argv)
 {
 
-  int m = 1900;
-  int n = 2100;
+  int n = 2000;
+  int tsteps = 500;
 
 
-  double (*A)[m + 0][n + 0]; A = (double(*)[m + 0][n + 0])polybench_alloc_data ((m + 0) * (n + 0), sizeof(double));;
-  double (*x)[n + 0]; x = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*y)[n + 0]; y = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*tmp)[m + 0]; tmp = (double(*)[m + 0])polybench_alloc_data (m + 0, sizeof(double));;
+  double (*A)[n + 0]; A = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
+  double (*B)[n + 0]; B = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
 
 
-  init_array (m, n, *A, *x);
+
+  init_array (n, *A, *B);
 
 
   polybench_timer_start();;
 
 
-  kernel_atax (m, n,
-        *A,
-        *x,
-        *y,
-        *tmp);
+  kernel_jacobi_1d(tsteps, n, *A, *B);
 
 
   polybench_timer_stop();;
@@ -1340,13 +1330,11 @@ int main(int argc, char** argv)
 
 
 
-  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *y);
+  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *A);
 
 
   free((void*)A);;
-  free((void*)x);;
-  free((void*)y);;
-  free((void*)tmp);;
+  free((void*)B);;
 
   return 0;
 }

@@ -7,7 +7,7 @@
  *
  * Web address: http://polybench.sourceforge.net
  */
-/* atax.c: this file is part of PolyBench/C */
+/* nussinov.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
 #include <unistd.h>
@@ -16,12 +16,12 @@
 
 /* Include polybench common header. */
 #include<polybench.h>
-# 1 "atax.c"
+# 1 "nussinov.c"
 # 1 "<built-in>"
 # 1 "<command-line>"
 # 1 "/usr/include/stdc-predef.h" 1 3 4
 # 1 "<command-line>" 2
-# 1 "atax.c"
+# 1 "nussinov.c"
 # 1 "utilities/polybench.h" 1
 # 28 "utilities/polybench.h"
 # 1 "/usr/include/stdlib.h" 1 3 4
@@ -1237,28 +1237,34 @@ extern void polybench_timer_stop();
 extern void polybench_timer_print();
 # 223 "utilities/polybench.h"
 extern void* polybench_alloc_data(unsigned long long int n, int elt_size);
-# 2 "atax.c" 2
+# 2 "nussinov.c" 2
 
 
-# 1 "./linear-algebra/kernels/atax/atax.h" 1
-# 5 "atax.c" 2
+# 1 "./medley/nussinov/nussinov.h" 1
+# 5 "nussinov.c" 2
+
+
+typedef char base;
+
+
 
 
 
 static
-void init_array (int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0])
+void init_array (int n,
+                 base seq[ n + 0],
+   int table[ n + 0][n + 0])
 {
   int i, j;
-  double fn;
-  fn = (double)n;
 
-  for (i = 0; i < n; i++)
-      x[i] = 1 + (i / fn);
-  for (i = 0; i < m; i++)
-    for (j = 0; j < n; j++)
-      A[i][j] = (double) ((i+j) % n) / (5*m);
+
+  for (i=0; i <n; i++) {
+     seq[i] = (base)((i+1)%4);
+  }
+
+  for (i=0; i <n; i++)
+     for (j=0; j <n; j++)
+       table[i][j] = 0;
 }
 
 
@@ -1266,44 +1272,53 @@ void init_array (int m, int n,
 
 static
 void print_array(int n,
-   double y[ n + 0])
+   int table[ n + 0][n + 0])
 
-{
-  int i;
-
-  fprintf(stderr, "==BEGIN DUMP_ARRAYS==\n");
-  fprintf(stderr, "begin dump: %s", "y");
-  for (i = 0; i < n; i++) {
-    if (i % 20 == 0) fprintf (stderr, "\n");
-    fprintf (stderr, "%0.2lf ", y[i]);
-  }
-  fprintf(stderr, "\nend   dump: %s\n", "y");
-  fprintf(stderr, "==END   DUMP_ARRAYS==\n");
-}
-
-
-
-
-static
-void kernel_atax(int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0],
-   double y[ n + 0],
-   double tmp[ m + 0])
 {
   int i, j;
+  int t = 0;
+
+  fprintf(stderr, "==BEGIN DUMP_ARRAYS==\n");
+  fprintf(stderr, "begin dump: %s", "table");
+  for (i = 0; i < n; i++) {
+    for (j = i; j < n; j++) {
+      if (t % 20 == 0) fprintf (stderr, "\n");
+      fprintf (stderr, "%d ", table[i][j]);
+      t++;
+    }
+  }
+  fprintf(stderr, "\nend   dump: %s\n", "table");
+  fprintf(stderr, "==END   DUMP_ARRAYS==\n");
+}
+# 62 "nussinov.c"
+static
+void kernel_nussinov(int n, base seq[ n + 0],
+      int table[ n + 0][n + 0])
+{
+  int i, j, k;
 
 #pragma scop
-  for (i = 0; i < n; i++)
-    y[i] = 0;
-  for (i = 0; i < m; i++)
-    {
-      tmp[i] = 0.0;
-      for (j = 0; j < n; j++)
- tmp[i] = tmp[i] + A[i][j] * x[j];
-      for (j = 0; j < n; j++)
- y[j] = y[j] + A[i][j] * tmp[i];
-    }
+ for (i = n-1; i >= 0; i--) {
+  for (j=i+1; j<n; j++) {
+
+   if (j-1>=0)
+      table[i][j] = ((table[i][j] >= table[i][j-1]) ? table[i][j] : table[i][j-1]);
+   if (i+1<n)
+      table[i][j] = ((table[i][j] >= table[i+1][j]) ? table[i][j] : table[i+1][j]);
+
+   if (j-1>=0 && i+1<n) {
+
+     if (i<j-1)
+        table[i][j] = ((table[i][j] >= table[i+1][j-1]+(((seq[i])+(seq[j])) == 3 ? 1 : 0)) ? table[i][j] : table[i+1][j-1]+(((seq[i])+(seq[j])) == 3 ? 1 : 0));
+     else
+        table[i][j] = ((table[i][j] >= table[i+1][j-1]) ? table[i][j] : table[i+1][j-1]);
+   }
+
+   for (k=i+1; k<j; k++) {
+      table[i][j] = ((table[i][j] >= table[i][k] + table[k+1][j]) ? table[i][j] : table[i][k] + table[k+1][j]);
+   }
+  }
+ }
 #pragma endscop
 
 }
@@ -1312,27 +1327,20 @@ void kernel_atax(int m, int n,
 int main(int argc, char** argv)
 {
 
-  int m = 1900;
-  int n = 2100;
+  int n = 2500;
 
 
-  double (*A)[m + 0][n + 0]; A = (double(*)[m + 0][n + 0])polybench_alloc_data ((m + 0) * (n + 0), sizeof(double));;
-  double (*x)[n + 0]; x = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*y)[n + 0]; y = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*tmp)[m + 0]; tmp = (double(*)[m + 0])polybench_alloc_data (m + 0, sizeof(double));;
+  base (*seq)[n + 0]; seq = (base(*)[n + 0])polybench_alloc_data (n + 0, sizeof(base));;
+  int (*table)[n + 0][n + 0]; table = (int(*)[n + 0][n + 0])polybench_alloc_data ((n + 0) * (n + 0), sizeof(int));;
 
 
-  init_array (m, n, *A, *x);
+  init_array (n, *seq, *table);
 
 
   polybench_timer_start();;
 
 
-  kernel_atax (m, n,
-        *A,
-        *x,
-        *y,
-        *tmp);
+  kernel_nussinov (n, *seq, *table);
 
 
   polybench_timer_stop();;
@@ -1340,13 +1348,11 @@ int main(int argc, char** argv)
 
 
 
-  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *y);
+  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *table);
 
 
-  free((void*)A);;
-  free((void*)x);;
-  free((void*)y);;
-  free((void*)tmp);;
+  free((void*)seq);;
+  free((void*)table);;
 
   return 0;
 }

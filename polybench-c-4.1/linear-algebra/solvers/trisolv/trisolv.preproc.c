@@ -7,7 +7,7 @@
  *
  * Web address: http://polybench.sourceforge.net
  */
-/* atax.c: this file is part of PolyBench/C */
+/* trisolv.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
 #include <unistd.h>
@@ -16,12 +16,12 @@
 
 /* Include polybench common header. */
 #include<polybench.h>
-# 1 "atax.c"
+# 1 "trisolv.c"
 # 1 "<built-in>"
 # 1 "<command-line>"
 # 1 "/usr/include/stdc-predef.h" 1 3 4
 # 1 "<command-line>" 2
-# 1 "atax.c"
+# 1 "trisolv.c"
 # 1 "utilities/polybench.h" 1
 # 28 "utilities/polybench.h"
 # 1 "/usr/include/stdlib.h" 1 3 4
@@ -1237,28 +1237,29 @@ extern void polybench_timer_stop();
 extern void polybench_timer_print();
 # 223 "utilities/polybench.h"
 extern void* polybench_alloc_data(unsigned long long int n, int elt_size);
-# 2 "atax.c" 2
+# 2 "trisolv.c" 2
 
 
-# 1 "./linear-algebra/kernels/atax/atax.h" 1
-# 5 "atax.c" 2
+# 1 "./linear-algebra/solvers/trisolv/trisolv.h" 1
+# 5 "trisolv.c" 2
 
 
 
 static
-void init_array (int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0])
+void init_array(int n,
+  double L[ n + 0][n + 0],
+  double x[ n + 0],
+  double b[ n + 0])
 {
   int i, j;
-  double fn;
-  fn = (double)n;
 
   for (i = 0; i < n; i++)
-      x[i] = 1 + (i / fn);
-  for (i = 0; i < m; i++)
-    for (j = 0; j < n; j++)
-      A[i][j] = (double) ((i+j) % n) / (5*m);
+    {
+      x[i] = - 999;
+      b[i] = i ;
+      for (j = 0; j <= i; j++)
+ L[i][j] = (double) (i+n-j+1)*2/n;
+    }
 }
 
 
@@ -1266,18 +1267,18 @@ void init_array (int m, int n,
 
 static
 void print_array(int n,
-   double y[ n + 0])
+   double x[ n + 0])
 
 {
   int i;
 
   fprintf(stderr, "==BEGIN DUMP_ARRAYS==\n");
-  fprintf(stderr, "begin dump: %s", "y");
+  fprintf(stderr, "begin dump: %s", "x");
   for (i = 0; i < n; i++) {
+    fprintf (stderr, "%0.2lf ", x[i]);
     if (i % 20 == 0) fprintf (stderr, "\n");
-    fprintf (stderr, "%0.2lf ", y[i]);
   }
-  fprintf(stderr, "\nend   dump: %s\n", "y");
+  fprintf(stderr, "\nend   dump: %s\n", "x");
   fprintf(stderr, "==END   DUMP_ARRAYS==\n");
 }
 
@@ -1285,24 +1286,20 @@ void print_array(int n,
 
 
 static
-void kernel_atax(int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0],
-   double y[ n + 0],
-   double tmp[ m + 0])
+void kernel_trisolv(int n,
+      double L[ n + 0][n + 0],
+      double x[ n + 0],
+      double b[ n + 0])
 {
   int i, j;
 
 #pragma scop
   for (i = 0; i < n; i++)
-    y[i] = 0;
-  for (i = 0; i < m; i++)
     {
-      tmp[i] = 0.0;
-      for (j = 0; j < n; j++)
- tmp[i] = tmp[i] + A[i][j] * x[j];
-      for (j = 0; j < n; j++)
- y[j] = y[j] + A[i][j] * tmp[i];
+      x[i] = b[i];
+      for (j = 0; j <i; j++)
+        x[i] -= L[i][j] * x[j];
+      x[i] = x[i] / L[i][i];
     }
 #pragma endscop
 
@@ -1312,27 +1309,22 @@ void kernel_atax(int m, int n,
 int main(int argc, char** argv)
 {
 
-  int m = 1900;
-  int n = 2100;
+  int n = 2000;
 
 
-  double (*A)[m + 0][n + 0]; A = (double(*)[m + 0][n + 0])polybench_alloc_data ((m + 0) * (n + 0), sizeof(double));;
+  double (*L)[n + 0][n + 0]; L = (double(*)[n + 0][n + 0])polybench_alloc_data ((n + 0) * (n + 0), sizeof(double));;
   double (*x)[n + 0]; x = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*y)[n + 0]; y = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*tmp)[m + 0]; tmp = (double(*)[m + 0])polybench_alloc_data (m + 0, sizeof(double));;
+  double (*b)[n + 0]; b = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
 
 
-  init_array (m, n, *A, *x);
+
+  init_array (n, *L, *x, *b);
 
 
   polybench_timer_start();;
 
 
-  kernel_atax (m, n,
-        *A,
-        *x,
-        *y,
-        *tmp);
+  kernel_trisolv (n, *L, *x, *b);
 
 
   polybench_timer_stop();;
@@ -1340,13 +1332,12 @@ int main(int argc, char** argv)
 
 
 
-  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *y);
+  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *x);
 
 
-  free((void*)A);;
+  free((void*)L);;
   free((void*)x);;
-  free((void*)y);;
-  free((void*)tmp);;
+  free((void*)b);;
 
   return 0;
 }

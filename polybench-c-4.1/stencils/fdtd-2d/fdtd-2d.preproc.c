@@ -7,7 +7,7 @@
  *
  * Web address: http://polybench.sourceforge.net
  */
-/* atax.c: this file is part of PolyBench/C */
+/* fdtd-2d.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
 #include <unistd.h>
@@ -16,12 +16,12 @@
 
 /* Include polybench common header. */
 #include<polybench.h>
-# 1 "atax.c"
+# 1 "fdtd-2d.c"
 # 1 "<built-in>"
 # 1 "<command-line>"
 # 1 "/usr/include/stdc-predef.h" 1 3 4
 # 1 "<command-line>" 2
-# 1 "atax.c"
+# 1 "fdtd-2d.c"
 # 1 "utilities/polybench.h" 1
 # 28 "utilities/polybench.h"
 # 1 "/usr/include/stdlib.h" 1 3 4
@@ -1237,102 +1237,141 @@ extern void polybench_timer_stop();
 extern void polybench_timer_print();
 # 223 "utilities/polybench.h"
 extern void* polybench_alloc_data(unsigned long long int n, int elt_size);
-# 2 "atax.c" 2
+# 2 "fdtd-2d.c" 2
 
 
-# 1 "./linear-algebra/kernels/atax/atax.h" 1
-# 5 "atax.c" 2
+# 1 "./stencils/fdtd-2d/fdtd-2d.h" 1
+# 5 "fdtd-2d.c" 2
 
 
 
 static
-void init_array (int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0])
+void init_array (int tmax,
+   int nx,
+   int ny,
+   double ex[ nx + 0][ny + 0],
+   double ey[ nx + 0][ny + 0],
+   double hz[ nx + 0][ny + 0],
+   double _fict_[ tmax + 0])
 {
   int i, j;
-  double fn;
-  fn = (double)n;
 
-  for (i = 0; i < n; i++)
-      x[i] = 1 + (i / fn);
-  for (i = 0; i < m; i++)
-    for (j = 0; j < n; j++)
-      A[i][j] = (double) ((i+j) % n) / (5*m);
+  for (i = 0; i < tmax; i++)
+    _fict_[i] = (double) i;
+  for (i = 0; i < nx; i++)
+    for (j = 0; j < ny; j++)
+      {
+ ex[i][j] = ((double) i*(j+1)) / nx;
+ ey[i][j] = ((double) i*(j+2)) / ny;
+ hz[i][j] = ((double) i*(j+3)) / nx;
+      }
 }
 
 
 
 
 static
-void print_array(int n,
-   double y[ n + 0])
-
+void print_array(int nx,
+   int ny,
+   double ex[ nx + 0][ny + 0],
+   double ey[ nx + 0][ny + 0],
+   double hz[ nx + 0][ny + 0])
 {
-  int i;
+  int i, j;
 
   fprintf(stderr, "==BEGIN DUMP_ARRAYS==\n");
-  fprintf(stderr, "begin dump: %s", "y");
-  for (i = 0; i < n; i++) {
-    if (i % 20 == 0) fprintf (stderr, "\n");
-    fprintf (stderr, "%0.2lf ", y[i]);
-  }
-  fprintf(stderr, "\nend   dump: %s\n", "y");
+  fprintf(stderr, "begin dump: %s", "ex");
+  for (i = 0; i < nx; i++)
+    for (j = 0; j < ny; j++) {
+      if ((i * nx + j) % 20 == 0) fprintf(stderr, "\n");
+      fprintf(stderr, "%0.2lf ", ex[i][j]);
+    }
+  fprintf(stderr, "\nend   dump: %s\n", "ex");
   fprintf(stderr, "==END   DUMP_ARRAYS==\n");
+
+  fprintf(stderr, "begin dump: %s", "ey");
+  for (i = 0; i < nx; i++)
+    for (j = 0; j < ny; j++) {
+      if ((i * nx + j) % 20 == 0) fprintf(stderr, "\n");
+      fprintf(stderr, "%0.2lf ", ey[i][j]);
+    }
+  fprintf(stderr, "\nend   dump: %s\n", "ey");
+
+  fprintf(stderr, "begin dump: %s", "hz");
+  for (i = 0; i < nx; i++)
+    for (j = 0; j < ny; j++) {
+      if ((i * nx + j) % 20 == 0) fprintf(stderr, "\n");
+      fprintf(stderr, "%0.2lf ", hz[i][j]);
+    }
+  fprintf(stderr, "\nend   dump: %s\n", "hz");
 }
 
 
 
 
 static
-void kernel_atax(int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0],
-   double y[ n + 0],
-   double tmp[ m + 0])
+void kernel_fdtd_2d(int tmax,
+      int nx,
+      int ny,
+      double ex[ nx + 0][ny + 0],
+      double ey[ nx + 0][ny + 0],
+      double hz[ nx + 0][ny + 0],
+      double _fict_[ tmax + 0])
 {
-  int i, j;
+  int t, i, j;
 
 #pragma scop
-  for (i = 0; i < n; i++)
-    y[i] = 0;
-  for (i = 0; i < m; i++)
-    {
-      tmp[i] = 0.0;
-      for (j = 0; j < n; j++)
- tmp[i] = tmp[i] + A[i][j] * x[j];
-      for (j = 0; j < n; j++)
- y[j] = y[j] + A[i][j] * tmp[i];
-    }
-#pragma endscop
 
+  for(t = 0; t < tmax; t++)
+    {
+      for (j = 0; j < ny; j++)
+ ey[0][j] = _fict_[t];
+      for (i = 1; i < nx; i++)
+ for (j = 0; j < ny; j++)
+   ey[i][j] = ey[i][j] - 0.5*(hz[i][j]-hz[i-1][j]);
+      for (i = 0; i < nx; i++)
+ for (j = 1; j < ny; j++)
+   ex[i][j] = ex[i][j] - 0.5*(hz[i][j]-hz[i][j-1]);
+      for (i = 0; i < nx - 1; i++)
+ for (j = 0; j < ny - 1; j++)
+   hz[i][j] = hz[i][j] - 0.7* (ex[i][j+1] - ex[i][j] +
+           ey[i+1][j] - ey[i][j]);
+    }
+
+#pragma endscop
 }
 
 
 int main(int argc, char** argv)
 {
 
-  int m = 1900;
-  int n = 2100;
+  int tmax = 500;
+  int nx = 1000;
+  int ny = 1200;
 
 
-  double (*A)[m + 0][n + 0]; A = (double(*)[m + 0][n + 0])polybench_alloc_data ((m + 0) * (n + 0), sizeof(double));;
-  double (*x)[n + 0]; x = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*y)[n + 0]; y = (double(*)[n + 0])polybench_alloc_data (n + 0, sizeof(double));;
-  double (*tmp)[m + 0]; tmp = (double(*)[m + 0])polybench_alloc_data (m + 0, sizeof(double));;
+  double (*ex)[nx + 0][ny + 0]; ex = (double(*)[nx + 0][ny + 0])polybench_alloc_data ((nx + 0) * (ny + 0), sizeof(double));;
+  double (*ey)[nx + 0][ny + 0]; ey = (double(*)[nx + 0][ny + 0])polybench_alloc_data ((nx + 0) * (ny + 0), sizeof(double));;
+  double (*hz)[nx + 0][ny + 0]; hz = (double(*)[nx + 0][ny + 0])polybench_alloc_data ((nx + 0) * (ny + 0), sizeof(double));;
+  double (*_fict_)[tmax + 0]; _fict_ = (double(*)[tmax + 0])polybench_alloc_data (tmax + 0, sizeof(double));;
 
 
-  init_array (m, n, *A, *x);
+  init_array (tmax, nx, ny,
+       *ex,
+       *ey,
+       *hz,
+       *_fict_);
 
 
   polybench_timer_start();;
 
 
-  kernel_atax (m, n,
-        *A,
-        *x,
-        *y,
-        *tmp);
+  kernel_fdtd_2d (tmax, nx, ny,
+    *ex,
+    *ey,
+    *hz,
+    *_fict_);
+
 
 
   polybench_timer_stop();;
@@ -1340,13 +1379,15 @@ int main(int argc, char** argv)
 
 
 
-  if (argc > 42 && ! strcmp(argv[0], "")) print_array(n, *y);
+  if (argc > 42 && ! strcmp(argv[0], "")) print_array(nx, ny, *ex, *ey, *hz)
+
+                             ;
 
 
-  free((void*)A);;
-  free((void*)x);;
-  free((void*)y);;
-  free((void*)tmp);;
+  free((void*)ex);;
+  free((void*)ey);;
+  free((void*)hz);;
+  free((void*)_fict_);;
 
   return 0;
 }
