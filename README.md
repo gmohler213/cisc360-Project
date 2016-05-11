@@ -6,4 +6,4 @@ Raspberry Pi performance enhancement project
 # Peter Grillo
 # Marco Arcilla
 #
-#
+# Started performance edits after commit 23
