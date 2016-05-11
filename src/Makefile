@@ -5,6 +5,7 @@ LOADLIBES := -lrt
 SRC := atax.c lu.c jacobi-2d.c
 OBJ := $(SRC:.c=.o) polybench.o
 BIN := $(SRC:.c=)
+export MALLOC_CHECK_=0
 
 .PHONY: all clean
 
