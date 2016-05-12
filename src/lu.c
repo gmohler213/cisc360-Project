@@ -73,18 +73,40 @@ void kernel_lu(int n,
 
 #pragma scop
   for (i = 0; i < n; i++) {
-    for (j = 0; j <i; j++) {
-       for (k = 0; k < j; k++) {
-          A[i][j] -= A[i][k] * A[k][j];
-       }
+    for (j = 0; j < i; j++) {
+       for (k = 0; k < j; k+=10) {
+          A[i][j] -= A[i][k] * A[k][i];
+	  A[i][j] -= A[i][k+1] * A[k+1][i];
+          A[i][j] -= A[i][k+2] * A[k+2][i];
+          A[i][j] -= A[i][k+3] * A[k+3][i];
+          A[i][j] -= A[i][k+4] * A[k+4][i];
+          A[i][j] -= A[i][k+5] * A[k+5][i];
+          A[i][j] -= A[i][k+6] * A[k+6][i];
+          A[i][j] -= A[i][k+7] * A[k+7][i];      
+ 	  A[i][j] -= A[i][k+8] * A[k+8][i];
+	  A[i][j] -= A[i][k+9] * A[k+9][i];
+
+
+ }
         A[i][j] /= A[j][j];
     }
-   for (j = i; j < n; j++) {
-       for (k = 0; k < i; k++) {
+   for (j = i; j < n;j++) {
+       for (k = 0; k < i; k+=10) {
           A[i][j] -= A[i][k] * A[k][j];
+          A[i][j] -= A[i][k+1] * A[k+1][j];
+          A[i][j] -= A[i][k+2] * A[k+2][j];
+          A[i][j] -= A[i][k+3] * A[k+3][j];
+          A[i][j] -= A[i][k+4] * A[k+4][j];
+          A[i][j] -= A[i][k+5] * A[k+5][j];
+          A[i][j] -= A[i][k+6] * A[k+6][j];
+          A[i][j] -= A[i][k+7] * A[k+7][j];
+          A[i][j] -= A[i][k+8] * A[k+8][j];
+          A[i][j] -= A[i][k+9] * A[k+9][j];
        }
     }
   }
+
+
 #pragma endscop
 }
 
