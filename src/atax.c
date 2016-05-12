@@ -56,22 +56,69 @@ void kernel_atax(int m, int n,
   int i, j;
 
 #pragma scop
+  for (i = 0; i < n; i+=10){
+    y[i] = 0;
+    y[i+1] = 0;
+    y[i+2] = 0;
+    y[i+3] = 0;
+    y[i+4] = 0;
+    y[i+5] = 0;
+    y[i+6] = 0;
+    y[i+7] = 0;
+    y[i+8] = 0;
+    y[i+9] = 0;
+  }
+  for (i = 0; i < m; i++)
+    {
+      tmp[i] = 0.0;
+      for (j = 0; j < n; j+=10){
+	tmp[i] = tmp[i] + A[i][j] * x[j];
+	tmp[i] = tmp[i] + A[i][j+1] * x[j+1];
+	tmp[i] = tmp[i] + A[i][j+2] * x[j+2];
+	tmp[i] = tmp[i] + A[i][j+3] * x[j+3];
+	tmp[i] = tmp[i] + A[i][j+4] * x[j+4];
+	tmp[i] = tmp[i] + A[i][j+5] * x[j+5];
+	tmp[i] = tmp[i] + A[i][j+6] * x[j+6];
+	tmp[i] = tmp[i] + A[i][j+7] * x[j+7];
+	tmp[i] = tmp[i] + A[i][j+8] * x[j+8];
+	tmp[i] = tmp[i] + A[i][j+9] * x[j+9];
+      }
+      for (j = 0; j < n; j+=10){
+	y[j] = y[j] + A[i][j] * tmp[i];
+	y[j+1] = y[j+1] + A[i][j+1] * tmp[i];
+	y[j+2] = y[j+2] + A[i][j+2] * tmp[i];
+	y[j+3] = y[j+3] + A[i][j+3] * tmp[i];
+	y[j+4] = y[j+4] + A[i][j+4] * tmp[i];
+	y[j+5] = y[j+5] + A[i][j+5] * tmp[i];
+	y[j+6] = y[j+6] + A[i][j+6] * tmp[i];
+	y[j+7] = y[j+7] + A[i][j+7] * tmp[i];
+	y[j+8] = y[j+8] + A[i][j+8] * tmp[i];
+	y[j+9] = y[j+9] + A[i][j+9] * tmp[i];
+      }
+    }
+
+  
+#pragma endscop
+}
+/*
+#pragma scop
   for (i = 0; i < n; i++)
     y[i] = 0;
   for (i = 0; i < m; i++)
     {
       tmp[i] = 0.0;
       for (j = 0; j < n; j++)
- tmp[i] = tmp[i] + A[i][j] * x[j];
+	tmp[i] = tmp[i] + A[i][j] * x[j];
       for (j = 0; j < n; j++)
- y[j] = y[j] + A[i][j] * tmp[i];
+	y[j] = y[j] + A[i][j] * tmp[i];
     }
 
-  
+
 #pragma endscop
 
+  
 }
-
+*/
 
 int main(int argc, char** argv)
 {
