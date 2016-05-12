@@ -48,10 +48,10 @@ void print_array(int n,
 
 static
 void kernel_atax(int m, int n,
-   double A[ m + 0][n + 0],
-   double x[ n + 0],
-   double y[ n + 0],
-   double tmp[ m + 0])
+   double A[ m ][n ],
+   double x[ n ],
+   double y[ n ],
+   double tmp[ m ])
 {
   int i, j;
 
@@ -66,6 +66,8 @@ void kernel_atax(int m, int n,
       for (j = 0; j < n; j++)
  y[j] = y[j] + A[i][j] * tmp[i];
     }
+
+  
 #pragma endscop
 
 }

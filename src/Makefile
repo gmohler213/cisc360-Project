@@ -1,5 +1,5 @@
 CC := gcc
-CFLAGS := -DPOLYBENCH_TIME -O3 -march=native
+CFLAGS := -DPOLYBENCH_TIME -O3 -march=native -fmodulo-sched -funsafe-loop-optimizations -fsel-sched-pipelining -fprefetch-loop-arrays  
 LOADLIBES := -lrt
 
 SRC := atax.c lu.c jacobi-2d.c
